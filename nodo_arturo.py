@@ -10,7 +10,7 @@ HEADER = 10
 
 NODOS = {
     "Michelle": "192.168.181.128",
-    "Arturo": "192.168.181.131",
+    "Roberto": "192.168.181.131",
     "Jimena": "192.168.181.130",
     "Arturo": "192.168.181.132"
 }
@@ -143,6 +143,32 @@ def comprar_articulo():
         print("[ERROR] Artículo no encontrado o sin stock.")
     input("Presiona Enter para continuar...")
 
+def enviar_articulo_maestro():
+    id_art = input("ID del artículo: ").strip()
+    nombre = input("Nombre del artículo: ").strip()
+    cantidad = int(input("Cantidad: "))
+
+    articulo = {
+        "id": id_art,
+        "nombre": nombre,
+        "cantidad": cantidad
+    }
+
+    mensaje_dict = {
+        "tipo": "nuevo_articulo",
+        "articulo": articulo
+    }
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            mensaje = json.dumps(mensaje_dict).encode()
+            s.connect((MAESTRO_IP, PORT))
+            s.sendall(f"{len(mensaje):<{HEADER}}".encode() + mensaje)
+            print(f"[OK] Artículo enviado al nodo maestro.")
+    except Exception as e:
+        print(f"[ERROR] No se pudo enviar el artículo: {e}")
+    input("Presiona Enter para continuar...")
+
 def servidor():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -176,14 +202,33 @@ def servidor():
         finally:
             conn.close()
 
+def ver_guias():
+    guias = cargar_json(guias_file)
+    print("\n--- GUÍAS DE ENVÍO ---")
+    if not guias:
+        print("No hay guías registradas.")
+    for g in guias:
+        print(f"{g['id_guia']} - Cliente: {g['cliente']} - Artículo: {g['articulo']}")
+    input("Presiona Enter para continuar...")
+
+def ver_inventario():
+    inventario = cargar_json(inventario_file)
+    print("\n--- INVENTARIO LOCAL ---")
+    if not inventario:
+        print("No hay artículos en el inventario.")
+    for item in inventario:
+        print(f"{item['id']} - {item['nombre']} : {item['cantidad']} unidades")
+    input("Presiona Enter para continuar...")
+
 def mostrar_menu():
-    print("\n------ MENÚ ROBERTO ------")
+    print("\n------ MENÚ ARTURO ------")
     print("1. Comprar artículo")
     print("2. Ver clientes")
     print("3. Registrar cliente")
     print("4. Ver guías de envío")
     print("5. Ver inventario")
-    print("6. Salir")
+    print("6. Agregar artículo al maestro")
+    print("7. Salir")
     print("----------------------------")
 
 def cliente():
@@ -202,29 +247,11 @@ def cliente():
         elif opcion == "5":
             ver_inventario()
         elif opcion == "6":
+            enviar_articulo_maestro()
+        elif opcion == "7":
             break
         else:
             print("[ERROR] Opción inválida.")
 
 threading.Thread(target=servidor, daemon=True).start()
 cliente()
-
-
-def ver_guias():
-    guias = cargar_json(guias_file)
-    print("\n--- GUÍAS DE ENVÍO ---")
-    if not guias:
-        print("No hay guías registradas.")
-    for g in guias:
-        print(f"{g['id_guia']} - Cliente: {g['cliente']} - Artículo: {g['articulo']}")
-    input("Presiona Enter para continuar...")
-
-
-def ver_inventario():
-    inventario = cargar_json(inventario_file)
-    print("\n--- INVENTARIO LOCAL ---")
-    if not inventario:
-        print("No hay artículos en el inventario.")
-    for item in inventario:
-        print(f"{item['id']} - {item['nombre']} : {item['cantidad']} unidades")
-    input("Presiona Enter para continuar...")
