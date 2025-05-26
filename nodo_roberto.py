@@ -24,7 +24,7 @@ PESOS = {
     "Arturo": 1
 }
 
-MI_NOMBRE = "Michelle"  # Cambiar en cada nodo
+MI_NOMBRE = "Roberto"  # Cambiar en cada nodo
 HOST = NODOS[MI_NOMBRE]
 MAESTRO = "Michelle"
 coordinador_actual = MAESTRO  # Coordinador actual
@@ -184,6 +184,7 @@ def cliente():
         opcion = input("Selecciona una opción: ").strip()
 
         if opcion == "1":
+            verificar_maestro()
             comprar_articulo()
         elif opcion == "2":
             ver_clientes()
@@ -300,15 +301,10 @@ def enviar_articulo_maestro():
         print(f"[ERROR] No se pudo enviar el artículo: {e}")
     input("Presiona Enter para continuar...")
 
-def monitor_maestro(intervalo=10):
-    while True:
-        time.sleep(intervalo)
-        verificar_maestro()
-
 # =================== INICIO DEL SISTEMA =====================
 
 if __name__ == "__main__":
     threading.Thread(target=servidor, daemon=True).start()
-    time.sleep(2)
-    threading.Thread(target=monitor_maestro, daemon=True).start()  # ✅ Verifica periódicamente
+    time.sleep(2)  # Esperar a que el servidor inicie
+    verificar_maestro()  # Verificación automática
     cliente()
