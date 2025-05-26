@@ -24,7 +24,7 @@ PESOS = {
     "Arturo": 1
 }
 
-MI_NOMBRE = "Michelle"  # Cambiar en cada nodo
+MI_NOMBRE = "Arturo"  # Cambiar en cada nodo
 HOST = NODOS[MI_NOMBRE]
 MAESTRO = "Michelle"
 coordinador_actual = MAESTRO  # Coordinador actual
@@ -118,7 +118,61 @@ def verificar_maestro():
     except:
         print("[FALLO] Nodo maestro no responde. Iniciando elección...")
         iniciar_eleccion()
+def monitor_maestro(intervalo=10):
+    while True:
+        time.sleep(intervalo)
+        verificar_maestro()
 
+def distribuir_articulo_equitativamente(articulo):
+    nodos_destino = [nombre for nombre in NODOS if nombre != MI_NOMBRE]
+    total_nodos = len(nodos_destino) + 1
+    cantidad_total = articulo["cantidad"]
+    cantidad_por_nodo = cantidad_total // total_nodos
+    sobrante = cantidad_total % total_nodos
+
+    articulo_local = dict(articulo)
+    articulo_local["cantidad"] = cantidad_por_nodo + sobrante
+    inventario = cargar_json(inventario_file)
+    inventario.append(articulo_local)
+    guardar_json(inventario_file, inventario)
+    print(f"[DISTRIBUIDO] Me quedo con {articulo_local['cantidad']} unidades.")
+
+    for nombre in nodos_destino:
+        ip = NODOS[nombre]
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                articulo_remoto = dict(articulo)
+                articulo_remoto["cantidad"] = cantidad_por_nodo
+                mensaje = json.dumps({
+                    "tipo": "actualizar_inventario",
+                    "articulo": articulo_remoto
+                }).encode()
+                s.connect((ip, PORT))
+                s.sendall(f"{len(mensaje):<{HEADER}}".encode() + mensaje)
+            print(f"[DISTRIBUIDO] Enviado {cantidad_por_nodo} a {nombre}")
+        except Exception as e:
+            print(f"[ERROR] No se pudo enviar artículo a {nombre}: {e}")
+
+def solicitar_clientes():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            mensaje = json.dumps({"tipo": "solicitar_clientes"}).encode()
+            s.connect((NODOS[coordinador_actual], PORT))
+            s.sendall(f"{len(mensaje):<{HEADER}}".encode() + mensaje)
+            data_len = s.recv(HEADER)
+            data = s.recv(int(data_len))
+            clientes_recibidos = json.loads(data.decode())
+            guardar_json(clientes_file, clientes_recibidos)
+            print("[SYNC] Clientes sincronizados al arrancar.")
+    except Exception as e:
+        print(f"[ERROR] No se pudo sincronizar clientes: {e}")
+
+# ================== MONITOREO AUTOMÁTICO ==================
+
+def monitor_maestro(intervalo=10):
+    while True:
+        time.sleep(intervalo)
+        verificar_maestro()
 # ==================== FUNCIONES SERVIDOR ======================
 
 def servidor():
@@ -135,23 +189,9 @@ def servidor():
             data = conn.recv(int(data_len))
             mensaje = data.decode()
             json_data = json.loads(mensaje)
-
             tipo = json_data.get("tipo")
 
-            if tipo == "actualizar_inventario":
-                inventario = cargar_json(inventario_file)
-                inventario.append(json_data["articulo"])
-                guardar_json(inventario_file, inventario)
-                print("[ACTUALIZADO] Artículo recibido.")
-                sincronizar_articulo(json_data["articulo"])
-            elif tipo == "nuevo_cliente":
-                clientes = cargar_json(clientes_file)
-                nuevo = json_data["cliente"]
-                if not any(c["id"] == nuevo["id"] for c in clientes):
-                    clientes.append(nuevo)
-                    guardar_json(clientes_file, clientes)
-                    print(f"[SYNC] Cliente sincronizado: {nuevo['id']}")
-            elif tipo == "ping":
+            if tipo == "ping":
                 conn.sendall("pong".encode())
             elif tipo == "eleccion":
                 conn.sendall("OK".encode())
@@ -161,10 +201,24 @@ def servidor():
                 print(f"[COORDINADOR] El nuevo coordinador es: {nuevo}")
                 global coordinador_actual
                 coordinador_actual = nuevo
+            elif tipo == "solicitar_clientes":
+                clientes = cargar_json(clientes_file)
+                respuesta = json.dumps(clientes).encode()
+                conn.sendall(f"{len(respuesta):<{HEADER}}".encode() + respuesta)
+            elif tipo == "actualizar_inventario":
+                if MI_NOMBRE == coordinador_actual:
+                    print("[ACTUALIZADO] Repartiendo artículo recibido.")
+                    distribuir_articulo_equitativamente(json_data["articulo"])
+                else:
+                    inventario = cargar_json(inventario_file)
+                    inventario.append(json_data["articulo"])
+                    guardar_json(inventario_file, inventario)
+                    print("[SYNC] Artículo sincronizado desde el coordinador.")
         except Exception as e:
             print(f"[ERROR] {e}")
         finally:
             conn.close()
+
 
 # =================== FUNCIONES DE CLIENTE =====================
 
@@ -305,6 +359,9 @@ def enviar_articulo_maestro():
 
 if __name__ == "__main__":
     threading.Thread(target=servidor, daemon=True).start()
-    time.sleep(2)  # Esperar a que el servidor inicie
-    verificar_maestro()  # Verificación automática
+    time.sleep(2)
+    solicitar_clientes()  # 🔁 Sincroniza lista de clientes al arrancar
+    iniciar_eleccion()
+    threading.Thread(target=monitor_maestro, daemon=True).start()
     cliente()
+
