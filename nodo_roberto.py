@@ -1,4 +1,3 @@
-
 import socket
 import threading
 import json
@@ -176,6 +175,24 @@ def servidor():
         finally:
             conn.close()
 
+def ver_guias():
+    guias = cargar_json(guias_file)
+    print("\n--- GUÍAS DE ENVÍO ---")
+    if not guias:
+        print("No hay guías registradas.")
+    for g in guias:
+        print(f"{g['id_guia']} - Cliente: {g['cliente']} - Artículo: {g['articulo']}")
+    input("Presiona Enter para continuar...")
+
+def ver_inventario():
+    inventario = cargar_json(inventario_file)
+    print("\n--- INVENTARIO LOCAL ---")
+    if not inventario:
+        print("No hay artículos en el inventario.")
+    for item in inventario:
+        print(f"{item['id']} - {item['nombre']} : {item['cantidad']} unidades")
+    input("Presiona Enter para continuar...")
+
 def mostrar_menu():
     print("\n------ MENÚ ROBERTO ------")
     print("1. Comprar artículo")
@@ -208,23 +225,3 @@ def cliente():
 
 threading.Thread(target=servidor, daemon=True).start()
 cliente()
-
-
-def ver_guias():
-    guias = cargar_json(guias_file)
-    print("\n--- GUÍAS DE ENVÍO ---")
-    if not guias:
-        print("No hay guías registradas.")
-    for g in guias:
-        print(f"{g['id_guia']} - Cliente: {g['cliente']} - Artículo: {g['articulo']}")
-    input("Presiona Enter para continuar...")
-
-
-def ver_inventario():
-    inventario = cargar_json(inventario_file)
-    print("\n--- INVENTARIO LOCAL ---")
-    if not inventario:
-        print("No hay artículos en el inventario.")
-    for item in inventario:
-        print(f"{item['id']} - {item['nombre']} : {item['cantidad']} unidades")
-    input("Presiona Enter para continuar...")
